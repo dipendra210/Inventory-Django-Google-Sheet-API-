@@ -1,0 +1,23 @@
+{% extends "inventory/base.html" %}
+    {% block content %}
+    <nav class="navbar navbar-inverse">
+        <div class="container">
+            <div class="navbar-header">
+                <div class="row">
+		            <div class="col-md-2"></div>
+		            <div class="col-md-8">
+                		<a class="navbar-brand" style="float: right;" href="{% url 'logout' %}">LOGIN</a>
+		            </div>
+	        	</div>
+            </div>
+        </div>
+    </nav>
+    <div class="container">
+    	<div class="row">
+    		<div class="col-md-2"></div>
+    		<div class="col-md-8">
+       			<p>You are not logged in. Please login first</p>
+    		</div>
+    	</div>
+    </div>
+    {% endblock content %}

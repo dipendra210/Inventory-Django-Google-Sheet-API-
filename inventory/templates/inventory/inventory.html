@@ -1,0 +1,335 @@
+{% extends "inventory/base.html" %}
+    {% block content %}
+    <nav class="navbar navbar-inverse">
+            <div class="container">
+                <div class="navbar-header">
+                    <div class="row">
+                        <div class="col-md-2"></div>
+                        <div class="col-md-8">
+                            <a class="navbar-brand" style="float: right;" href="{% url 'logout' %}">Logout</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </nav>
+       
+        <div class="container">
+            <center>
+                <div class="form-style-3">
+                    <form onsubmit="return false;">
+                        <div class="web_camera"> 
+                            <fieldset><legend>Web Camera</legend>
+                                <div id="canvas" class="viewport">
+                                    <video class="col-md-12" autoplay="true" preload="auto" src="" muted="true"
+                                    playsinline="true"></video>
+                                    <canvas class="drawingBuffer" style="display:none;"></canvas>
+                                </div>
+                                <div>
+                                    <select name="cams" id="cams">
+                                    </select>
+                                </div>
+                            </fieldset>
+                        </div>
+
+                        <div class="product_info">
+                            <fieldset style="height:350px;"><legend>Product Information</legend>
+                                <div class="form-group row">
+                                    <label style="color: white;" class="col-sm-3 col-form-label">BARCODE</label>
+                                    <div class="col-sm-6">
+                                        <input type="number" class="form-control" id="barcode" placeholder="Input barcode" name="barcode" onkeypress="handle(event)">
+                                    </div>
+                                    <div class="col-sm-3">
+                                        <button class="btn btn-success" id="retrieve" style="margin-bottom: 10px;" onclick="search()">Search</button>   
+                                        <span id="captured" style="color: white;"></span> 
+                                    </div>
+                                </div>
+                                <div class="form-group row">
+                                    <label style="color: white;" class="col-sm-3 col-form-label">Product Name</label>
+                                        <div class="col-sm-8">
+                                            <input type="text" id="product_name" class="form-control" id="inputEmail3" placeholder="Input product name">
+                                        </div>
+                                </div>
+
+                                <div class="form-group row">
+                                    <label style="color: white;" class="col-sm-3 col-form-label">UOM</label>
+                                    <div class="col-sm-2">
+                                        <input type="number" class="form-control" id="uom1_count" placeholder="">
+                                    </div>
+                                    <div class="col-sm-2">
+                                        <select name="" id="uom1_unit">
+                                        </select>
+                                    </div>
+                                    <div class="col-sm-2">
+                                        <input type="number" class="form-control" id="uom2_count" placeholder="">
+                                    </div>
+                                    <div class="col-sm-2">
+                                        <select name="" id="uom2_unit">
+                                        </select>
+                                    </div>
+                                </div>
+                                
+                                <div class="row">
+                                    <div class="col-sm-6 right">
+                                    </div>
+                                    <div class="col-sm-5">
+                                        <button class="btn btn-success" style="margin-bottom: 10px;" onclick="add()">Save</button>
+                                        <span id="adding" style="color: white;padding-top: 10px;"></span>
+                                    </div>
+                                </div>
+
+                            </fieldset>
+                        </div>
+                    </form>
+                </div>
+            </center>          
+            
+
+        </div>
+
+        <script type="text/javascript">
+            var statue_product = 0
+            var _scannerIsRunning = false;
+
+            $(document).ready(function() {
+                var uom1 = document.getElementById("uom1_unit");
+                var uom2 = document.getElementById("uom2_unit");
+
+                $.ajax({
+                        url: 'getUOMs/',
+                        type: 'POST',
+                        success: function(response) {
+                            for (index = 0; index < response[0].length; index++) {
+                                var uom1_option = document.createElement("option");
+                                uom1_option.text = response[0][index];
+                                uom1_option.value = response[0][index];
+                                uom1.add(uom1_option);
+                            }
+                            for (index = 0; index < response[1].length; index++) {
+                                var uom2_option = document.createElement("option");
+                                uom2_option.text = response[1][index];
+                                uom2_option.value = response[1][index];
+                                uom2.add(uom2_option);
+                            }
+                        }
+
+                    });           
+
+
+                if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+                    alert("The browser not supported camera.");
+                    return;
+                }
+                
+                var html = '';
+                var i = 1;
+                navigator.mediaDevices.enumerateDevices()
+                .then(function(devices) {
+                    devices.forEach(function(device) {
+                        if (device.kind == 'videoinput') {
+                            if (device.label == '')
+                                label = "Web camera " + i++;
+                            else
+                                label = device.label;
+
+                            html += '<option value="' + device.deviceId + '">' + label + '</option>'
+                        }
+                    });
+
+                    $('#cams').html(html);
+                })
+                .catch(function(err) {
+                    console.log(err.name + ": " + err.message);
+                });
+
+                var devId;
+                devId = $('#cams').val();
+                startScanner(devId);
+                
+                $('#cams').change(function() {
+                    devId = $('#cams').val();
+                    Quagga.stop();
+                    startScanner(devId);
+                })
+
+                function startScanner(devId) {
+                    Quagga.init({
+                        inputStream: {
+                            name: "Live",
+                            type: "LiveStream",
+                            target: document.querySelector('#canvas'),
+                            constraints: {
+                                // width: 480,
+                                // height: 320,
+                                // facingMode: "environment"
+                                deviceId: devId
+                            },
+                        },
+                        decoder: {
+                            readers: [
+                                "code_128_reader",
+                                "ean_reader",
+                                "ean_8_reader",
+                                "code_39_reader",
+                                "code_39_vin_reader",
+                                "codabar_reader",
+                                "upc_reader",
+                                "upc_e_reader",
+                                "i2of5_reader"
+                            ],
+                            // debug: {
+                            //     showCanvas: false,
+                            //     showPatches: false,
+                            //     showFoundPatches: false,
+                            //     showSkeleton: false,
+                            //     showLabels: false,
+                            //     showPatchLabels: false,
+                            //     showRemainingPatchLabels: false,
+                            //     boxFromPatches: {
+                            //         showTransformed: false,
+                            //         showTransformedBox: false,
+                            //         showBB: false
+                            //     }
+                            // }
+                        },
+
+                    }, function (err) {
+                        if (err) {
+                            console.log(err);
+                            return
+                        }
+
+                        //Initialization finished. Ready to start
+                        Quagga.start();
+
+                        // Set flag to is running
+                        _scannerIsRunning = true;
+                    });
+
+                    // Quagga.onProcessed(function (result) {
+                    //     var drawingCtx = Quagga.canvas.ctx.overlay,
+                    //     drawingCanvas = Quagga.canvas.dom.overlay;
+
+                    //     if (result) {
+                    //         if (result.boxes) {
+                    //             drawingCtx.clearRect(0, 0, parseInt(drawingCanvas.getAttribute("width")), parseInt(drawingCanvas.getAttribute("height")));
+                    //             result.boxes.filter(function (box) {
+                    //                 return box !== result.box;
+                    //             }).forEach(function (box) {
+                    //                 Quagga.ImageDebug.drawPath(box, { x: 0, y: 1 }, drawingCtx, { color: "green", lineWidth: 2 });
+                    //             });
+                    //         }
+
+                    //         if (result.box) {
+                    //             Quagga.ImageDebug.drawPath(result.box, { x: 0, y: 1 }, drawingCtx, { color: "#00F", lineWidth: 2 });
+                    //         }
+
+                    //         if (result.codeResult && result.codeResult.code) {
+                    //             Quagga.ImageDebug.drawPath(result.line, { x: 'x', y: 'y' }, drawingCtx, { color: 'red', lineWidth: 3 });
+                    //         }
+                    //     }
+                    // });
+
+
+                    Quagga.onDetected(function (result) {
+                        console.log("Barcode detected and processed : [" + result.codeResult.code + "]", result);
+                        $('#barcode').val(result.codeResult.code)
+                    });
+                }
+
+            });
+
+
+            function handle(e){
+                if(e.keyCode === 13){
+                    e.preventDefault(); // Ensure it is only this code that rusn
+
+                    if (document.getElementById("barcode").value != '') {
+                        $("#captured").text("Waiting...");
+                        $("button").prop('disabled', true);
+
+
+                        document.getElementById("product_name").value = '';
+                        
+                        $.ajax({
+                            url: 'getBarcode/',
+                            type: 'POST',
+                            data: {'barcode': document.getElementById("barcode").value,
+                               },
+                            success: function(response) {
+                                $("#captured").text("");
+                                $("button").prop('disabled', false);
+                                if (typeof response.title == 'undefined') {
+                                    statue_product = 1;
+                                   $('#product_name').attr('placeholder', 'No product name');
+                                }
+                                else{
+                                    statue_product = 0
+                                    document.getElementById("product_name").value = response.title;
+                                    document.getElementById("uom1_count").value = parseInt(response.unit1_count);
+                                    document.getElementById("uom1_unit").val(response.uom1);
+                                    document.getElementById("uom2_count").value = parseInt(response.unit2_count);
+                                    document.getElementById("uom2_unit").val(response.uom2);
+                                }
+                            }
+                        });
+                    }
+                }
+            }
+
+            function search() {
+                if (document.getElementById("barcode").value != '') {
+                    $("#captured").text("Waiting...");
+                    $("button").prop('disabled', true);
+
+
+                    document.getElementById("product_name").value = '';
+                    document.getElementById("uom1_count").value = '';
+                    document.getElementById("uom1_unit").value = '';
+                    document.getElementById("uom2_count").value = '';
+                    document.getElementById("uom2_unit").value = '';
+
+                    $.ajax({
+                        url: 'getBarcode/',
+                        type: 'POST',
+                        data: {'barcode': document.getElementById("barcode").value,
+                           },
+                        success: function(response) {
+                            $("#captured").text("");
+                            $("button").prop('disabled', false);
+                            if (typeof response.title == 'undefined') {
+                                statue_product = 1;
+                                $('#product_name').attr('placeholder', 'No product name');
+                            }
+                            else{
+                                statue_product = 0
+                                document.getElementById("product_name").value = response.title;
+                                document.getElementById("uom1_count").value = parseInt(response.unit1_count);
+                                document.getElementById("uom2_count").value = parseInt(response.unit2_count);
+                                document.getElementById("uom1_unit").selectedIndex = $("#uom1_unit option[value='"+response.uom1+"']").index();
+                                document.getElementById("uom2_unit").selectedIndex = $("#uom2_unit option[value='"+response.uom2+"']").index();
+                            }
+                        }
+                    });
+                }
+            }
+
+            function add() {
+                $("#adding").text("Saving ...");
+                $.ajax({
+                    url: 'add/',
+                    type: 'POST',
+                    data: {'barcode': document.getElementById("barcode").value,                    
+                           'product_name' : document.getElementById("product_name").value,
+                           'uom1_count' : document.getElementById("uom1_count").value,
+                           'uom1_unit' : document.getElementById("uom1_unit").value,
+                           'uom2_count' : document.getElementById("uom2_count").value,
+                           'uom2_unit' : document.getElementById("uom2_unit").value,
+                           'statue' : statue_product,
+                            },
+                    success: function(response) {
+                        $("#adding").text("");
+                    }
+                });
+            }
+        </script>
+        {% endblock content %}
